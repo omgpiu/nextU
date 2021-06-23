@@ -1,4 +1,4 @@
-import { ApolloServer, gql } from 'apollo-server-micro'
+import { ApolloServer, gql, UserInputError } from 'apollo-server-micro'
 import mysql from 'serverless-mysql'
 import { OkPacket } from 'mysql';
 import { Resolvers } from '../../generated/graphq-backed';
@@ -55,6 +55,11 @@ enum TaskStatus {
     Completed = 'completed',
 }
 
+const getTaskById = async (id: number, db: mysql.ServerlessMysql) => {
+    const tasks = await db.query<TasksDbQueryResult>('SELECT id,title,status FROM tasks WHERE id = ?',
+        [id])
+    return tasks.length ? { id: tasks[0].id, title: tasks[0].title, status: tasks[0].status } : null;
+}
 
 const resolvers: Resolvers<ApolloContext> = {
     Query: {
@@ -77,8 +82,10 @@ const resolvers: Resolvers<ApolloContext> = {
             await db.end();
             return tasks
         },
-        task(parent, args, context) {
-            return null;
+        async task(parent, args, context) {
+            const tasks = await context.db.query<TasksDbQueryResult>('SELECT id,title,status FROM tasks WHERE id = ?',
+                [args.id])
+            return await getTaskById(args.id, context.db)
         },
     },
     Mutation: {
@@ -97,11 +104,31 @@ const resolvers: Resolvers<ApolloContext> = {
                 status: TaskStatus.Active,
             };
         },
-        updateTask(parent, args, context) {
-            return null;
+        async updateTask(parent, args, context) {
+            const columns: string[] = []
+            const sqlParams: (string | number)[] = []
+            if (args.input.title) {
+                columns.push('title = ?')
+                sqlParams.push(args.input.title)
+            }
+            if (args.input.status) {
+                columns.push('status = ? ')
+                sqlParams.push(args.input.status)
+            }
+            sqlParams.push(args.input.id)
+            await context.db.query(`UPDATE tasks SET ${columns.join(',')} WHERE id =?`,
+                sqlParams
+            )
+
+            return await getTaskById(args.input.id, context.db);
+
+
         },
-        deleteTask(parent, args, context) {
-            return null;
+        async deleteTask(parent, args, context) {
+            const task = await getTaskById(args.id, context.db)
+            if (!task) throw  new UserInputError('Task not found')
+            await context.db.query('DELETE FROM tasks WHERE id = ?', [args.id])
+            return task
         },
     },
 };
