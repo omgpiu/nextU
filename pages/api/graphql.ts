@@ -1,80 +1,126 @@
-import { ApolloServer, gql, IResolvers } from 'apollo-server-micro'
+import { ApolloServer, gql } from 'apollo-server-micro'
 import mysql from 'serverless-mysql'
+import { OkPacket } from 'mysql';
+import { Resolvers } from '../../generated/graphq-backed';
 
 const typeDefs = gql`
-    enum TaskStatus  {
+    enum TaskStatus {
         active
         completed
     }
+
     type Task {
-        id:Int!,
-        title:String
+        id: Int!
+        title: String!
         status: TaskStatus!
     }
+
     input CreateTaskInput {
-        title:String!
+        title: String!
     }
+
     input UpdateTaskInput {
-        id:Int!
-        title:String
-        status:TaskStatus
+        id: Int!
+        title: String
+        status: TaskStatus
     }
+
     type Query {
-        tasks(status:TaskStatus):[Task!]!
-        task(id:Int!):Task
+        tasks(status: TaskStatus): [Task!]!
+        task(id: Int!): Task
     }
+
     type Mutation {
-        createTask(input:CreateTaskInput!):Task
-        updateTask(input:UpdateTaskInput): Task
-        deleteTask(id:Int!):Task
+        createTask(input: CreateTaskInput!): Task
+        updateTask(input: UpdateTaskInput!): Task
+        deleteTask(id: Int!): Task
     }
-`
+`;
 
 interface ApolloContext {
-    db: mysql.ServerlessMysql
-
+    db: mysql.ServerlessMysql;
 }
 
-const resolvers: IResolvers<any, ApolloContext> = {
+
+interface TaskDbRow {
+    id: number;
+    title: string;
+    status: TaskStatus;
+}
+
+type TasksDbQueryResult = TaskDbRow[];
+
+enum TaskStatus {
+    Active = 'active',
+    Completed = 'completed',
+}
+
+
+const resolvers: Resolvers<ApolloContext> = {
     Query: {
-        async tasks(parent, args, context) {
-            const result = await context.db.query('SELECT "HELLO WORLD" as hello_world');
+        async tasks(
+            parent,
+            args,
+            context
+        ) {
+            const { status } = args;
+            let query = 'SELECT id, title, status FROM tasks';
+            const queryParams: string[] = [];
+            if (status) {
+                query += ' WHERE task_status = ?';
+                queryParams.push(status);
+            }
+            const tasks = await context.db.query<TasksDbQueryResult>(
+                query,
+                queryParams
+            );
             await db.end();
-            console.log(result)
-            console.log({ result })
-            return []
+            return tasks
         },
-        task() {
+        task(parent, args, context) {
             return null;
-        }
+        },
     },
     Mutation: {
-        createTask(parent, args, context) {
-            return null
+        async createTask(
+            parent,
+            args,
+            context
+        ) {
+            const result = await context.db.query<OkPacket>(
+                'INSERT INTO tasks (title,status) VALUES(?, ?)',
+                [args.input.title, TaskStatus.Active]
+            );
+            return {
+                id: result.insertId,
+                title: args.input.title,
+                status: TaskStatus.Active,
+            };
         },
         updateTask(parent, args, context) {
-            return null
+            return null;
         },
         deleteTask(parent, args, context) {
-            return null
-        }
-    }
-}
+            return null;
+        },
+    },
+};
+
 const db = mysql({
     config: {
         host: process.env.MYSQL_HOST,
         user: process.env.MYSQL_USER,
         database: process.env.MYSQL_DATABASE,
-        password: process.env.MYSQL_PASSWORD
-    }
-})
+        password: process.env.MYSQL_PASSWORD,
+    },
+});
 
-const apolloServer = new ApolloServer({ typeDefs, resolvers, context: { db } })
+const apolloServer = new ApolloServer({ typeDefs, resolvers, context: { db } });
 
 export const config = {
     api: {
         bodyParser: false,
     },
-}
+};
 
-export default apolloServer.createHandler({ path: '/api/graphql' })
+export default apolloServer.createHandler({ path: '/api/graphql' });
