@@ -1,25 +1,22 @@
 import Head from 'next/head'
-import styles from '../styles/Home.module.css'
+
 import { initializeApollo } from '../lib/client';
 import { TasksDocument, TasksQuery, useTasksQuery } from '../generated/graphql-frontend';
+import TasksList from '../components/TasksList';
+import CreateTaskForm from '../components/CreateTaskForm';
 
 export default function Home() {
     const result = useTasksQuery()
     const tasks = result.data?.tasks
     return (
-        <div className={ styles.container }>
+        <div>
             <Head>
                 <title>Tasks</title>
                 <link rel="icon" href="/favicon.ico"/>
             </Head>
-            { tasks && tasks.length > 0 && tasks.map(task => {
-                return <div key={ task.title + task.id + task.status }>
-                    { task.title }
-                    ({ task.status })
-
-                </div>
-            }) }
-
+            <CreateTaskForm onSuccess={ result.refetch }/>
+            { result.loading ? (<p>Loading tasks</p>) : result.error ? (<p>Some error</p>) : tasks && tasks.length > 0 ?
+                (<TasksList tasks={ tasks }/>) : (<p className="no-tasks-message">You dont have tasks</p>) }
         </div>
     )
 }
