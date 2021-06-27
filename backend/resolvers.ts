@@ -37,7 +37,7 @@ export const resolvers: Resolvers<ApolloContext> = {
             let query = 'SELECT id, title, status FROM tasks';
             const queryParams: string[] = [];
             if (status) {
-                query += ' WHERE task_status = ?';
+                query += ' WHERE status = ?';
                 queryParams.push(status);
             }
             const tasks = await context.db.query<TasksDbQueryResult>(
