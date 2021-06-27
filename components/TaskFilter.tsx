@@ -8,7 +8,8 @@ interface Props {
 
 const TaskFilter: React.FC<Props> = ({ status }) => {
     return <ul className="task-filter">
-        <li><Link href="/" scroll={ false }><a className={ !status ? 'task-filter-active' : '' }>All</a></Link></li>
+        <li><Link href="/" scroll={ false } shallow={ true }><a
+            className={ !status ? 'task-filter-active' : '' }>All</a></Link></li>
         <li><Link href="/[status]" as={ `/${ TaskStatus.Active }` } scroll={ false }
                   shallow={ true }><a className={ status === TaskStatus.Active ? 'task-filter-active' : '' }>Active</a></Link>
         </li>
